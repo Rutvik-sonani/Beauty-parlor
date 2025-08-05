@@ -19,6 +19,7 @@ export function CustomerReviews() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [sourceFilter, setSourceFilter] = useState("all")
 
   const [isAddingReview, setIsAddingReview] = useState(false)
   const [editingReview, setEditingReview] = useState<any>(null)
@@ -78,9 +79,10 @@ export function CustomerReviews() {
         serviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         review.comment.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === "all" || review.status.toLowerCase() === statusFilter
-      return matchesSearch && matchesStatus
+      const matchesSource = sourceFilter === "all" || review.source === sourceFilter
+      return matchesSearch && matchesStatus && matchesSource
     })
-  }, [reviews, customers, services, searchTerm, statusFilter])
+  }, [reviews, customers, services, searchTerm, statusFilter, sourceFilter])
 
   const handleAddReview = async () => {
     if (!reviewForm.customerName || !reviewForm.service || !reviewForm.comment) {
@@ -110,7 +112,8 @@ export function CustomerReviews() {
         comment: reviewForm.comment,
         status: "Published",
         response: null,
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        source: "Admin Created"
       })
       
       setReviewForm({
@@ -260,6 +263,8 @@ export function CustomerReviews() {
         return "bg-blue-100 text-blue-700"
       case "Direct Review":
         return "bg-purple-100 text-purple-700"
+      case "Admin Created":
+        return "bg-green-100 text-green-700"
       default:
         return "bg-gray-100 text-gray-700"
     }
@@ -269,7 +274,7 @@ export function CustomerReviews() {
     reviews.length > 0 ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : "0.0"
 
   const pendingCount = reviews.filter((r) => r.status === "Pending").length
-  const websiteFeedbackCount = reviews.filter((r) => r.status === "Pending").length
+  const websiteFeedbackCount = reviews.filter((r) => r.source === "Website Feedback").length
 
   return (
     <div className="space-y-6">
@@ -511,6 +516,17 @@ export function CustomerReviews() {
             <SelectItem value="hidden">Hidden</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-48 rounded-xl border-pink-200">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="Website Feedback">Website Feedback</SelectItem>
+            <SelectItem value="Direct Review">Direct Review</SelectItem>
+            <SelectItem value="Admin Created">Admin Created</SelectItem>
+          </SelectContent>
+        </Select>
 
       </div>
 
@@ -543,6 +559,9 @@ export function CustomerReviews() {
                     <p className="text-sm text-gray-600 mb-2">
                       {getServiceName(review.service_id)} • {review.date} • {getCustomerEmail(review.customer_id)} • {getCustomerPhone(review.customer_id)}
                     </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className={getSourceColor(review.source)}>{review.source}</Badge>
+                    </div>
                     <p className="text-gray-700 mb-3">{review.comment}</p>
 
                     {review.response && (

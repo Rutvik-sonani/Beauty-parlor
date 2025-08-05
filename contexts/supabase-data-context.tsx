@@ -120,6 +120,7 @@ interface Review {
   status: string
   response: string | null
   date: string
+  source: string
   created_at: string
   updated_at: string
 }

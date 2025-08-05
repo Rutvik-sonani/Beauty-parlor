@@ -126,7 +126,26 @@ export function CustomerWebsite({ onAdminLogin }: CustomerWebsiteProps) {
     },
   ]
 
-  const testimonials = [
+  const { addReview, customers, reviews } = useSupabaseData()
+
+  // Get approved testimonials from database
+  const approvedTestimonials = reviews
+    .filter(review => review.status === "Published")
+    .map(review => {
+      const customer = customers.find(c => c.id === review.customer_id)
+      const service = services.find(s => s.id === review.service_id)
+      return {
+        name: customer?.name || "Anonymous",
+        rating: review.rating,
+        comment: review.comment,
+        service: service?.name || "General Service",
+        date: review.date
+      }
+    })
+    .slice(0, 4) // Show only first 4 testimonials
+
+  // Fallback testimonials if no approved reviews exist
+  const fallbackTestimonials = [
     {
       name: "Sarah Johnson",
       rating: 5,
@@ -157,8 +176,65 @@ export function CustomerWebsite({ onAdminLogin }: CustomerWebsiteProps) {
     },
   ]
 
-  const handleFeedbackSubmit = () => {
-    if (feedbackForm.name && feedbackForm.email && feedbackForm.feedback) {
+  const testimonials = approvedTestimonials.length > 0 ? approvedTestimonials : fallbackTestimonials
+
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackForm.name || !feedbackForm.email || !feedbackForm.feedback) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+
+    try {
+      // First, check if customer exists, if not create one
+      let customer = customers.find(c => c.email === feedbackForm.email || c.phone === feedbackForm.phone)
+      
+      if (!customer) {
+        // Create a new customer record
+        const { data: newCustomer, error: customerError } = await supabase
+          .from("customers")
+          .insert([{
+            name: feedbackForm.name,
+            email: feedbackForm.email,
+            phone: feedbackForm.phone || null,
+            loyalty_points: 0,
+            total_visits: 0,
+            tier: "Bronze",
+            total_spent: 0,
+            status: "Active",
+            join_date: new Date().toISOString().split('T')[0]
+          }])
+          .select()
+          .single()
+
+        if (customerError) {
+          console.error('Error creating customer:', customerError)
+          toast.error("Failed to submit feedback. Please try again.")
+          return
+        }
+        
+        customer = newCustomer
+      }
+
+      // Find service by name if provided
+      let serviceId = null
+      if (feedbackForm.service) {
+        const service = services.find(s => s.name === feedbackForm.service)
+        serviceId = service?.id || null
+      }
+
+      // Submit the review
+      await addReview({
+        customer_id: customer.id,
+        service_id: serviceId,
+        rating: feedbackForm.rating,
+        comment: feedbackForm.feedback,
+        status: "Pending", // Start as pending for admin approval
+        response: null,
+        date: new Date().toISOString().split('T')[0],
+        source: "Website Feedback" // Mark as website feedback
+      })
+
+      // Reset form
       setFeedbackForm({
         name: "",
         email: "",
@@ -169,8 +245,9 @@ export function CustomerWebsite({ onAdminLogin }: CustomerWebsiteProps) {
       })
 
       toast.success("Thank you for your feedback! We appreciate your input and will review it shortly.")
-    } else {
-      toast.error("Please fill in all required fields")
+    } catch (error) {
+      console.error('Error submitting feedback:', error)
+      toast.error("Failed to submit feedback. Please try again.")
     }
   }
 
